@@ -378,31 +378,23 @@ def reset_password_mpin(data: dict = Body(...), db: Session = Depends(get_db)):
     return {"success": True, "message": "Password reset successful"}
 
 def send_otp_email(to_email: str, otp: str):
-    smtp_server = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    port_str = os.getenv("SMTP_PORT", "587")
-    try:
-        port = int(port_str)
-    except ValueError:
-        port = 587
-    sender_email = os.getenv("SMTP_USER")
-    password = os.getenv("SMTP_PASSWORD")
+    import requests
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("SMTP_USER", "vemanisai@gmail.com") # Default to the verified Gmail
 
-    # Fallback to local console log if SMTP settings are missing or contain placeholder values
-    if not sender_email or not password or "YOUR_EMAIL" in sender_email or "YOUR_16_DIGIT" in password:
-        print(f"[Fallback Log] Placeholder or missing SMTP credentials in env. OTP for {to_email}: {otp}")
+    # Fallback to local console log if API key is missing
+    if not api_key:
+        print(f"[Fallback Log] BREVO_API_KEY is missing in env. OTP for {to_email}: {otp}")
         return
 
-    message = MIMEMultipart("alternative")
-    message["Subject"] = "FoodRescue - Reset Verification Code"
-    message["From"] = sender_email
-    message["To"] = to_email
-
+    url = "https://api.brevo.com/v3/smtp/email"
+    
     html = f"""
     <html>
       <body style="font-family: Arial, sans-serif; background-color: #030712; color: #e5e7eb; padding: 30px; text-align: center;">
         <div style="max-width: 500px; margin: 0 auto; background-color: #0f172a; padding: 30px; border-radius: 20px; border: 1px solid #1f2937;">
           <h2 style="color: #10b981; margin-bottom: 20px;">FoodRescue Verification</h2>
-          <p>Use the following 6-digit OTP code to reset your account password:</p>
+          <p>Use the following 6-digit OTP code to verify your account:</p>
           <div style="font-size: 28px; font-weight: bold; background-color: #111827; padding: 15px; margin: 20px auto; width: 160px; border-radius: 12px; border: 1px solid #10b981; color: #10b981; letter-spacing: 4px;">
             {otp}
           </div>
@@ -411,21 +403,28 @@ def send_otp_email(to_email: str, otp: str):
       </body>
     </html>
     """
-    message.attach(MIMEText(html, "html"))
+
+    payload = {
+        "sender": {"name": "FoodRescue", "email": sender_email},
+        "to": [{"email": to_email}],
+        "subject": "Your Verification Code",
+        "htmlContent": html
+    }
+    
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
 
     try:
-        if port == 465:
-            with smtplib.SMTP_SSL(smtp_server, port, timeout=5) as server:
-                server.login(sender_email, password)
-                server.sendmail(sender_email, to_email, message.as_string())
-        else:
-            with smtplib.SMTP(smtp_server, port, timeout=5) as server:
-                server.starttls()
-                server.login(sender_email, password)
-                server.sendmail(sender_email, to_email, message.as_string())
-        print(f"OTP Email sent successfully to {to_email}")
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        print(f"OTP Email sent successfully to {to_email} via Brevo HTTP API")
     except Exception as e:
-        print(f"[Error] Failed to send email to {to_email}: {e}")
+        print(f"[Error] Failed to send email to {to_email} via Brevo: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"[Error Details] {e.response.text}")
 
 @app.post("/forgot-password")
 def forgot_password(req: schemas.ForgotPasswordRequest, db: Session = Depends(get_db)):
