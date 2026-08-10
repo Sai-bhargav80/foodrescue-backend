@@ -102,7 +102,7 @@ Kivy-Garden==0.1.5
 kivy_deps.angle==0.4.0
 kivy_deps.glew==0.3.1
 kivy_deps.sdl2==0.8.0
-kivymd @ https://github.com/kivymd/KivyMD/archive/master.zip#sha256=f6dd87020e485c08afc63b5ed80daa2e042d3b77cc52c0fb9e5ff2b392e5948b
+kivymd @ https://github.com/kivymd/KivyMD/archive/master.zip
 kiwisolver==1.4.8
 lazy_loader==0.4
 libclang==18.1.1
