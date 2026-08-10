@@ -266,8 +266,18 @@ def signup(data: dict = Body(...), db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # No email OTP validation as per new MPIN flow
-
+    otp = data.get("otp", "").strip()
+    if not otp:
+        raise HTTPException(status_code=400, detail="OTP is required")
+        
+    otp_data = signup_otps.get(email)
+    if not otp_data or otp_data["otp"] != otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+    if datetime.now() > otp_data["expires"]:
+        del signup_otps[email]
+        raise HTTPException(status_code=400, detail="OTP expired")
+        
+    del signup_otps[email]
     new_user = models.User(
         email=email,
         password=data.get("password"),
