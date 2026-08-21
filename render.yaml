@@ -7,4 +7,15 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        sync: false # Set this in the Render dashboard later
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: foodrescue-redis
+          property: connectionString
+
+  - type: redis
+    name: foodrescue-redis
+    region: oregon
+    plan: free
+    ipAllowList: []

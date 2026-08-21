@@ -8,6 +8,16 @@ from datetime import datetime, timedelta
 import asyncio
 import random
 import os
+import json
+from redis.asyncio import Redis
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_client = None
+try:
+    redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
+except Exception as e:
+    print(f"Warning: Redis not initialized: {e}")
+
 import smtplib
 import uuid
 import time
@@ -81,16 +91,47 @@ class ConnectionManager:
         if user_id in self.active_connections:
             await self.active_connections[user_id].send_json(message)
 
-    async def broadcast(self, message: dict):
+    async def _local_broadcast(self, message: dict):
         for connection in list(self.active_connections.values()):
             try:
                 await connection.send_json(message)
             except Exception:
                 pass
 
+    async def broadcast(self, message: dict):
+        # Publish to Redis instead of just local
+        if redis_client:
+            try:
+                await redis_client.publish("food_updates", json.dumps(message))
+            except Exception:
+                await self._local_broadcast(message)
+        else:
+            await self._local_broadcast(message)
+
+manager = ConnectionManager()
+
+async def redis_listener():
+    if not redis_client:
+        return
+    try:
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe("food_updates")
+        print("Subscribed to Redis channel: food_updates")
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                data = json.loads(message["data"])
+                await manager._local_broadcast(data)
+    except Exception as e:
+        print(f"Redis listener encountered an error: {e}")
+
 manager = ConnectionManager()
 
 app = FastAPI(title="FoodRescue API")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(redis_listener())
+
 
 # Register admin dashboard router
 from admin_dashboard import router as admin_dashboard_router

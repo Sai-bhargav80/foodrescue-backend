@@ -8,3 +8,5 @@ python-multipart==0.0.9
 requests==2.31.0
 PyJWT==2.8.0
 cryptography==42.0.5
+redis==5.0.3
+websockets==12.0
